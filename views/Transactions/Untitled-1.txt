@@ -1,0 +1,358 @@
+If you need to insert two product codes under one grnp_no (Goods Receipt Note Number), you'll typically manage this in a GRNP sub-table (e.g., grnp_sub) where each grnp_no can have multiple products (each with its own product_code). Here’s how you can handle this:
+
+Database Structure
+grnp_main (stores general GRNP data)
+grnp_no, date, warehouse_id, etc.
+grnp_sub (stores products associated with each GRNP)
+grnp_no (foreign key)
+product_code
+quantity
+purchase_rate, etc.
+Example SQL for Inserting Two Products for One GRNP:
+sql
+Copy code
+INSERT INTO grnp_main (grnp_no, date, warehouse_id)
+VALUES ('GRNP001', '2024-10-12', 1);
+
+INSERT INTO grnp_sub (grnp_no, product_code, quantity, purchase_rate)
+VALUES 
+    ('GRNP001', 'P001', 10, 120.00),
+    ('GRNP001', 'P002', 5, 150.00);
+In this structure, one grnp_no can have multiple products in the grnp_sub table, ensuring each product has its own details (like quantity, rate, batch number, etc.) while all are linked to the same grnp_no.
+
+Laravel Approach
+In your Laravel controller, you can handle multiple product insertions by looping through the products for a given GRNP:
+
+php
+Copy code
+public function store(Request $request) {
+    // Insert main GRNP
+    $grnp = new GrnpMain;
+    $grnp->grnp_no = $request->grnp_no;
+    $grnp->date = now();
+    $grnp->warehouse_id = $request->warehouse_id;
+    $grnp->save();
+    
+    // Insert products associated with the GRNP
+    foreach ($request->products as $product) {
+        GrnpSub::create([
+            'grnp_no' => $grnp->grnp_no,
+            'product_code' => $product['product_code'],
+            'quantity' => $product['quantity'],
+            'purchase_rate' => $product['purchase_rate'],
+            'batch_code' => $product['batch_code'],
+            'mfg_date' => $product['mfg_date'],
+            'expiry_date' => $product['expiry_date'],
+        ]);
+    }
+    
+    return response()->json(['message' => 'GRNP saved with multiple products.']);
+}
+For the second question:
+Feel free to ask your next question!
+
+
+
+
+
+
+
+
+
+
+// Function to fetch order details
+function fetchOrderDetails(orderNo) {
+    $('#orderModal').modal('hide');
+
+    fetch(`/getOrderDetails/${orderNo}`)
+        .then(response => response.json())
+        .then(data => {
+            const tableBody = document.querySelector('.purchaseTable');
+            tableBody.innerHTML = '';
+            const amounts = []; // Array to hold the calculated amounts
+
+            data.forEach(item => {
+                const quantity = item.quantity; // Assuming you have quantity in your response
+                const rate = item.selling_rate; // Assuming you have selling_rate from product
+                const amount = rate * quantity; // Calculate amount
+                amounts.push(amount); // Store the amount for total calculation
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.hsn_code}</td>
+                    <td>${item.product_name}</td>
+                    <td>${item.selling_rate}</td>
+                    <td>${item.cgst}</td>
+                    <td>${item.igst}</td>
+                    <td>${item.discount}</td>
+                    <td>${item.free}</td>
+                    <td>${amount.toFixed(2)}</td> <!-- Display the calculated amount -->
+                    <td>${item.batch_code || 'N/A'}</td> <!-- Display batch_code if available -->
+                `;
+                tableBody.appendChild(row);
+            });
+
+            // Calculate total amount after populating the table
+            calculateTotalAmount(amounts); // Call to update total amount
+        })
+        .catch(error => console.error('Error fetching order details:', error));
+}
+
+// Function to calculate the total amount after discount
+function calculateTotalAmount(amounts) {
+    const totalAmount = amounts.reduce((acc, curr) => acc + curr, 0);
+    const discountType = document.querySelector('input[name="discountType"]:checked').value;
+    const discountValue = parseFloat(document.getElementById('discountValue').value) || 0;
+
+    let finalAmount = totalAmount;
+    if (discountType === 'percentage') {
+        finalAmount -= (finalAmount * (discountValue / 100));
+    } else {
+        finalAmount -= discountValue;
+    }
+
+    // Display the final amount
+    document.getElementById('finalAmount').innerText = finalAmount.toFixed(2);
+
+    // Calculate and display the rounded amount
+    const roundedAmount = Math.round(finalAmount);
+    document.getElementById('roundedAmount').value = roundedAmount; // Set rounded amount in input
+    document.getElementById('roundedLabel').innerText = `Rounded Amount: ${roundedAmount}`; // Display rounded amount
+
+    // Update remaining balance when paid amount is changed
+    updateRemainingBalance(roundedAmount);
+}
+
+// Function to update the remaining balance based on paid amount
+function updateRemainingBalance(roundedAmount) {
+    const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
+    const remainingBalance = roundedAmount - paidAmount;
+    document.getElementById('remainingBalance').value = remainingBalance >= 0 ? remainingBalance.toFixed(2) : '0.00'; // Ensure it doesn't show negative values
+}
+
+// Event listeners for radio buttons and discount input
+document.querySelectorAll('input[name="discountType"]').forEach((elem) => {
+    elem.addEventListener('change', function() {
+        const discountValueInput = document.getElementById('discountValue');
+        discountValueInput.placeholder = this.value === 'percentage' ? 'Enter percentage' : 'Enter amount';
+        calculateTotalAmount(amounts); // Call to update total amount
+    });
+});
+
+// Event listener for discount value input
+document.getElementById('discountValue').addEventListener('input', function() {
+    calculateTotalAmount(amounts); // Call to update total amount
+});
+
+// Event listener for paid amount input
+document.getElementById('paidAmount').addEventListener('input', function() {
+    const roundedAmount = Math.round(parseFloat(document.getElementById('finalAmount').innerText));
+    updateRemainingBalance(roundedAmount); // Update remaining balance based on paid amount
+});
+
+// Initialize amounts array
+let amounts = []; // This will be populated with your actual amounts from order details
+
+
+        function fetchOrderDetails(orderNo) {
+            $('#orderModal').modal('hide');        
+            fetch(`/getOrderDetails/${orderNo}`)
+                .then(response => response.json())
+                .then(data => {
+                    const tableBody = document.querySelector('.purchaseTable');
+                    tableBody.innerHTML = '';
+                    let totalAmount = 0;
+
+                    data.forEach(item => {
+                        const row = document.createElement('tr');
+                        const calculatedAmount = item.selling_rate * item.quantity;
+                    
+                        totalAmount += calculatedAmount;
+
+                        row.innerHTML = `
+                            <td>${item.hsn_code}</td>
+                            <td>${item.product_name}</td>
+                            <td>${item.selling_rate}</td>
+                            <td>${item.cgst}</td>
+                            <td>${item.igst}</td>
+                            <td>${item.discount}</td>
+                            <td>${item.free}</td>
+                            <td>${calculatedAmount.toFixed(2)}</td>
+                            <td>${item.batch_code}</td>
+                            <td></td> <!-- Additional cells if needed -->
+                            <td></td>
+                            <td></td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                    document.getElementById('totalAmount').value = totalAmount.toFixed(2);
+                })
+                .catch(error => console.error('Error fetching order details:', error));
+        }
+
+
+
+
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\InvoiceMain;
+use App\Models\InvoiceSub;
+use App\Models\product;
+use App\Models\product_category;
+use App\Models\OrderMain;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+class BillController extends Controller
+{
+    public function index(Request $request)
+    {
+        $product = product::all();
+        $category = product_category::all();
+        $orders = OrderMain::all();
+
+        $query = $request->get('query');
+        $products = collect();
+
+        if ($query) {
+            $products = Product::where('product_name', 'LIKE', "%{$query}%")->get(['_id', 'product_name', 'photo']);
+        }   
+
+        $selectedProductId = $request->get('selected_product_id');
+        $selectedProductName = $request->get('selected_product_name');
+        
+        return view('Transactions.invoice', compact( 'product', 'category', 'products', 'selectedProductId', 'selectedProductName', 'orders'));
+    }
+    public function getOrderDetails($orderNo)
+    {
+        $orderDetails = DB::table('order_sub')
+            ->where('order_sub.order_no', $orderNo)
+            ->join('order_main', 'order_sub.order_no', '=', 'order_main.order_no')
+            ->join('product', 'order_sub.product_code', '=', 'product.product_code')
+            // ->leftJoin('grnp_sub', 'order_sub.product_code', '=', 'grnp_sub.product_code')
+            ->select(
+                'order_main.customer_id',
+                'product.hsn_code',
+                'product.product_name',
+                'product.selling_rate',
+                'product.cgst',
+                'product.igst',
+                'order_sub.quantity'
+                // DB::raw('IF(grnp_sub.batch_code IS NOT NULL, grnp_sub.batch_code, NULL) as batch_code')
+            )
+            ->get();
+
+        return response()->json($orderDetails);
+    }
+    public function createInvoice(Request $request)
+    {
+        // Step 1: Create the InvoiceMain record
+        $invoiceMain = InvoiceMain::create([
+            'invoice_no' => $request->invoice_no,
+            'cgst' => $request->cgst,
+            'sgst' => $request->sgst,
+            'igst' => $request->igst,
+            'advance' => $request->advance,
+            'round_off_val' => $request->round_off_val,
+            'taxable_value' => $request->taxable_value,
+            // 'bill_date' => Carbon::now(),
+            'less_amt' => $request->less_amt,
+            'round_off' => $request->round_off,
+            'amount' => $request->amount,
+            'paid_amt' => $request->paid_amt,
+            'bal_amt' => $request->bal_amt,
+            'due_amt' => $request->due_amt,
+            'type_field' => $request->type_field,
+            'customer_id' => $request->customer_id,
+            'user_id' => auth()->id(),
+            'warehouse_code' => $request->warehouse_code,
+            'customer_type' => $request->customer_type,
+            'update_status' => 1
+        ]);
+
+        // Step 2: Create the InvoiceSub records
+        foreach ($request->products as $product) {
+            InvoiceSub::create([
+                'invoice_no' => $request->invoice_no,
+                'cgst' => $product['cgst'],
+                'sgst' => $product['sgst'],
+                'igst' => $product['igst'],
+                'less_amt' => $product['less_amt'],
+                'product_code' => $product['product_code'],
+                'batch_code' => $product['batch_code'],
+                'rate' => $product['rate'],
+                'quantity' => $product['quantity'],
+                'free' => $product['free'],
+                'tax' => $product['tax'],
+                'amount' => $product['amount'],
+                'update_status' => 1
+            ]);
+        }
+
+        return response()->json(['message' => 'Invoice created successfully']);
+    }
+
+    // Display the Invoice by invoice_no
+    public function showInvoice($invoice_no)
+    {
+        // Retrieve the main invoice and associated products
+        $invoiceMain = InvoiceMain::where('invoice_no', $invoice_no)->with('invoiceSubs')->firstOrFail();
+
+        return view('invoice.show', compact('invoiceMain'));
+    }
+
+    public function store(Request $request)
+    {
+        $formattedDate = \Carbon\Carbon::createFromFormat('d/M/Y', $request->input('current_date'))->format('Y-m-d');
+    
+        DB::transaction(function () use ($request, $formattedDate) {
+            Log::info($request->all());
+    
+            // Insert data into `invoice_main`
+            $invoiceMain = InvoiceMain::create([
+                'invoice_no' => $request->input('bill_no'),
+                'cgst' => $request->input('cgstAmountInput'),
+                'igst' => $request->input('igstAmountInput'),
+                'round_off_val'=> $request->input('finalAmount'),
+                'taxable_value' => $request->input('totalAmount_one'),
+                'bill_date' => $formattedDate,
+                'amount' => $request->input('totalAmount'),
+                'paid_amt' => $request->input('paidAmount'),
+                'bal_amt' => $request->input('remainingBalance'),
+                'customer_id' => $request->input('customer_id_display'),
+            ]);
+    
+            $products = json_decode($request->products, true);
+    
+            foreach ($products as $product) {
+                
+                if (empty($product['product_code']) && !empty($product['product_name'])) {
+                    $productData = Product::where('product_name', $product['product_name'])->first();
+                    if ($productData) {
+                        $product['product_code'] = $productData->product_code;
+                    } else {
+                        Log::error("Product not found: " . $product['product_name']);
+                        continue; 
+                    }
+                }
+    
+                InvoiceSub::create([
+                    'invoice_no' => $invoiceMain->id, 
+                    'product_code' => $product['product_code'],
+                    'cgst' => $product['cgst'],
+                    'igst' => $product['igst'],
+                    'rate' => $product['selling_rate'],
+                    'quantity' => $product['quantity'],
+                    'free' => $product['free'],
+                    // tax
+                    'amount' => $product['total_item_amount']                    
+                ]);
+            }
+        });
+    
+        return redirect()->back()->with('success', 'Invoice saved successfully');
+    }
+}
